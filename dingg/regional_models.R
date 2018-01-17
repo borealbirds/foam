@@ -132,8 +132,9 @@ yyy <- yyy[,colSums(yyy)>=100]
 off <- OFF[rownames(yyy), colnames(yyy)]
 
 library(opticut)
-oc <- opticut(yyy ~ 1, strata=dat[rownames(yyy), "HAB_NALC1"], dist="binomial")
-plot(hclust(vegan::vegdist(t(summary(oc)$bestpart), "jaccard")), hang=-1)
+oc <- opticut(yyy ~ 1, strata=dat[rownames(yyy), "HAB_NALC2"], dist="binomial")
+plot(hclust(vegan::vegdist(t(summary(oc)$bestpart), "jaccard")), hang=-1, sub="", xlab="")
+plot(oc, cex.axis=0.75)
 1-round(vegan::vegdist(t(summary(oc)$bestpart), "jaccard"),3)
 
 ftable(DAT$JBCR, DAT$RoadBBS)
@@ -366,6 +367,15 @@ for (spp in SPP) {
     save(res1, file=paste0("e:/peter/bam/2017/foam/foam-results_", spp, ".Rdata"))
 }
 
+res1[["AB::6"]]
+h <- function(x) {
+    if (inherits(x, "try-error"))
+        return(0)
+    data.frame(D=round(sort(exp(c(x$coef[1], x$coef[1]+x$coef[-1]))), 4))
+}
+
+xx <- lapply(res1, function(z) h(z$density$lcc_on))
+
 ## todo:
 ## OK - add year effect
 ## - calculate geographic discrepancies
@@ -375,3 +385,46 @@ for (spp in SPP) {
 ## - check spatial patterns and change climate if needed
 ## - pl/cl???
 
+fl <- list.files("e:/peter/bam/2017/foam")
+SPP <- substr(sapply(strsplit(fl, "_"), "[[", 2), 1, 4)
+
+LEV <- c("ConifDense", "Agr", "ConifOpen", "ConifSparse", "DecidDense",
+    "DecidOpen", "DecidSparse", "Devel", "Grass", "MixedDense", "MixedOpen",
+    "MixedSparse", "Shrub", "WetDense", "WetOpen", "WetSparse")
+h2 <- function(x) {
+    if (inherits(x, "try-error"))
+        return(structure(rep(NA, length(LEV)), names=LEV))
+    x <- data.frame(D=round(sort(exp(c(x$coef[1], x$coef[1]+x$coef[-1]))), 4))
+    out <- list()
+    for (i in 1:length(x$D)) {
+        a <- rownames(x)[i]
+        a <- substr(a, 2, nchar(a))
+        a <- strsplit(a, "\\+")[[1]]
+        out[[i]] <- structure(rep(x$D[i], length(a)), names=a)
+    }
+    out <- unlist(out)
+    names(out)[names(out) == "Intercept)"] <- LEV[1]
+    out <- out[match(LEV, names(out))]
+    names(out) <- LEV
+    out
+}
+
+Den <- list()
+#spp <- "CAWA"
+for (spp in SPP) {
+    fn <- paste0("e:/peter/bam/2017/foam/foam-results_", spp, ".Rdata")
+    load(fn)
+    res4 <- res1[c("ON::8", "QC::8", "ON::12", "QC::12")]
+    Den[[spp]] <- sapply(res4, function(z) h2(z$density$lcc_on))
+}
+save(Den, file="e:/peter/bam/2017/Density-ON-QC.RData")
+
+f <- function(x) {
+    x <- t(x)
+    x / apply(x, 1, max, na.rm=TRUE)
+}
+i <- "CAWA"
+barplot(f(Den[[i]]), main=i, beside=TRUE, legend.text=TRUE,
+    col=c("tomato", "gold", "grey", "turquoise"), ylab="density / max density")
+
+barplot(t(Den[[i]]), main=names(Den)[i], beside=TRUE)
